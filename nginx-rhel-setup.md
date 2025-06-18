@@ -59,7 +59,7 @@ yum update -x redhat-release*
 
 ## 🔹 6️⃣ Install NGINX
 ```bash
-yum install nginx-<version>
+yum install nginx
 ```
 👉 Installs NGINX.
 
