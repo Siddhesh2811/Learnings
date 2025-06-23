@@ -1,0 +1,160 @@
+---
+- name: NGINX setup with repo, configuration, logrotate, sudoers, and service management
+  hosts: all
+  become: yes
+  vars:
+    env_type: prod  # Change to 'nonprod' as needed
+    nginx_log_dir: "{{ '/app/log/nginx' if env_type == 'prod' else '/app/data/log/nginx' }}"
+
+  tasks:
+    - name: Install yum-utils
+      yum:
+        name: yum-utils
+        state: present
+
+    - name: Create NGINX yum repository
+      copy:
+        dest: /etc/yum.repos.d/nginx.repo
+        content: |
+          [nginx-stable]
+          name=nginx stable repo
+          baseurl=http://nginx.org/packages/rhel/8/$basearch/
+          gpgcheck=1
+          enabled=1
+          gpgkey=https://nginx.org/keys/nginx_signing.key
+          module_hotfixes=true
+
+          [nginx-mainline]
+          name=nginx mainline repo
+          baseurl=http://nginx.org/packages/rhel/8/$basearch/
+          gpgcheck=1
+          enabled=0
+          gpgkey=https://nginx.org/keys/nginx_signing.key
+          module_hotfixes=true
+
+    - name: Update packages excluding redhat-release
+      yum:
+        name: '*'
+        state: latest
+        exclude: redhat-release*
+
+    - name: Install nginx
+      yum:
+        name: nginx
+        state: present
+
+    - name: Backup existing nginx.conf if exists
+      command: mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf_orig
+      args:
+        removes: /etc/nginx/nginx.conf_orig
+      ignore_errors: yes
+
+    - name: Deploy nginx.conf
+      copy:
+        dest: /etc/nginx/nginx.conf
+        content: |
+          user appadm;
+          worker_processes auto;
+          pid /run/nginx.pid;
+
+          events {
+              worker_connections 1024;
+              multi_accept on;
+          }
+
+          http {
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              client_max_body_size 25M;
+              types_hash_max_size 2048;
+              server_tokens off;
+
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+
+              log_format main '[$time_local] - '
+              '"Remote_Address=$remote_addr" - '
+              '"Remote_user=$remote_user " - '
+              '"Request=$request" - '
+              '"Status=$status" - '
+              '"Body_bytes_sent=$body_bytes_sent" - '
+              '"HTTP_Referer=$http_referer" - '
+              '"x-forwarded_for=$http_x_forwarded_for" - '
+              '"Request_time=$request_time" - '
+              '"Upstream_response_time="$upstream_response_time" - '
+              '"Pipe=$pipe" - '
+              '"connection=$connection" - '
+              '"Upstream_Address=$upstream_addr" - '
+              '"Upstream_status=$upstream_status"';
+
+              access_log {{ nginx_log_dir }}/access.log main;
+              error_log {{ nginx_log_dir }}/error.log;
+
+              gzip on;
+              include /etc/nginx/conf.d/*.conf;
+              proxy_read_timeout 100;
+              gzip_comp_level 1;
+              gzip_min_length 1000;
+              gzip_proxied expired no-cache no-store private auth;
+              gzip_types text/plain application/x-javascript text/xml text/css application/xml;
+          }
+      notify: Restart NGINX
+
+    - name: Ensure nginx log directory exists
+      file:
+        path: "{{ nginx_log_dir }}"
+        state: directory
+        owner: appadm
+        group: appadm
+        mode: '0755'
+        recurse: yes
+
+    - name: Set /etc/sudoers permissions safely
+      file:
+        path: /etc/sudoers
+        mode: '0440'
+
+    - name: Add appadm sudoers rule for nginx control
+      copy:
+        dest: /etc/sudoers.d/appadm-nginx
+        content: |
+          appadm ALL=NOPASSWD: /usr/bin/systemctl start nginx
+          appadm ALL=NOPASSWD: /usr/bin/systemctl stop nginx
+          appadm ALL=NOPASSWD: /usr/bin/systemctl restart nginx
+          appadm ALL=NOPASSWD: /usr/bin/systemctl reload nginx
+          appadm ALL=NOPASSWD: /usr/bin/systemctl status nginx
+        mode: '0440'
+
+    - name: Set up logrotate for nginx
+      copy:
+        dest: /etc/logrotate.d/nginx
+        content: |
+          {{ nginx_log_dir }}/*.log {
+              daily
+              missingok
+              rotate 30
+              notifempty
+              create 740 appadm appadm
+              dateext
+              sharedscripts
+              postrotate
+                  if [ -f /run/nginx.pid ]; then
+                      kill -USR1 `cat /run/nginx.pid`
+                  fi
+              endscript
+          }
+        mode: '0644'
+
+    - name: Ensure nginx is enabled and running
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart NGINX
+      systemd:
+        name: nginx
+        state: restarted
