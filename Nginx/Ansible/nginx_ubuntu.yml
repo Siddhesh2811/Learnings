@@ -1,0 +1,175 @@
+- name: Complete NGINX Setup and Configuration
+  hosts: all
+  become: yes
+
+  vars_prompt:
+    - name: "env_type"
+      prompt: "Enter environment type (prod/non-prod)"
+      private: no
+
+    - name: "codebase_location"
+      prompt: "Enter the codebase location (e.g., /app/codebase)"
+      private: no
+
+    - name: "is_php_app"
+      prompt: "Is this a PHP-based application? (yes/no)"
+      private: no
+
+  vars:
+    is_php_app_bool: "{{ is_php_app | lower | trim == 'yes' }}"
+
+  tasks:
+
+    - name: Ensure /app/data directory exists
+      file:
+        path: /app/data
+        state: directory
+
+    - name: Download nginx signing key
+      get_url:
+        url: https://nginx.org/keys/nginx_signing.key
+        dest: /app/data/nginx_signing.key
+
+    - name: Add nginx signing key
+      apt_key:
+        file: /app/data/nginx_signing.key
+        state: present
+
+    - name: Add nginx repository to sources.list
+      blockinfile:
+        path: /etc/apt/sources.list
+        block: |
+          deb https://nginx.org/packages/mainline/ubuntu/ bionic nginx
+          deb-src https://nginx.org/packages/mainline/ubuntu/ bionic nginx
+
+    - name: Remove nginx-common package
+      apt:
+        name: nginx-common
+        state: absent
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: List available nginx versions
+      command: apt list nginx -a
+      register: nginx_versions
+
+    - name: Show nginx versions
+      debug:
+        var: nginx_versions.stdout_lines
+
+    - name: Install specific NGINX version
+      apt:
+        name: nginx=1.23.3-1~bionic
+        state: present
+
+    - name: Enable and start nginx service
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+
+    - name: Check NGINX service status
+      command: systemctl status nginx
+      register: nginx_status
+
+    - name: Show nginx service status
+      debug:
+        var: nginx_status.stdout_lines
+
+    - name: Backup nginx.conf file
+      copy:
+        src: /etc/nginx/nginx.conf
+        dest: /etc/nginx/nginx.conf_BKP16DEC23
+        remote_src: yes
+
+    - name: Set user to appadm in nginx.conf
+      replace:
+        path: /etc/nginx/nginx.conf
+        regexp: '^user\s+\S+;'
+        replace: 'user appadm;'
+
+    - name: Set access log path for non-prod
+      replace:
+        path: /etc/nginx/nginx.conf
+        regexp: 'access_log\s+\S+;'
+        replace: 'access_log  /app/data/log/nginx/access.log;'
+      when: env_type == "non-prod"
+
+    - name: Set access log path for prod
+      replace:
+        path: /etc/nginx/nginx.conf
+        regexp: 'access_log\s+\S+;'
+        replace: 'access_log  /app/log/nginx/access.log;'
+      when: env_type == "prod"
+
+    - name: Create log folder for non-prod
+      file:
+        path: /app/data/log/nginx
+        state: directory
+        mode: '0755'
+        recurse: yes
+      when: env_type == "non-prod"
+
+    - name: Create log folder for prod
+      file:
+        path: /app/log/nginx
+        state: directory
+        mode: '0755'
+        recurse: yes
+      when: env_type == "prod"
+
+    - name: Change listen port from [::]:80 to 2828
+      replace:
+        path: /etc/nginx/sites-available/default
+        regexp: '^\s*listen\s+\[::\]:80\s+default_server;'
+        replace: '    listen 2828 default_server;'
+
+    - name: Update root directory path
+      replace:
+        path: /etc/nginx/sites-available/default
+        regexp: '^\s*root\s+\/var\/www\/html;'
+        replace: "    root {{ codebase_location }};"
+
+    - name: Ensure index.php is included in index line (only if PHP)
+      lineinfile:
+        path: /etc/nginx/sites-available/default
+        regexp: '^(\s*index\s+.*)$'
+        line: '    index index.php index.html index.htm index.nginx-debian.html;'
+        backrefs: yes
+      when: is_php_app_bool
+
+    - name: Set permission 770 to /etc/sudoers (temporarily for editing)
+      file:
+        path: /etc/sudoers
+        mode: '0770'
+
+    - name: Add sudoers rules for appadm directly in /etc/sudoers
+      blockinfile:
+        path: /etc/sudoers
+        block: |
+          appadm ALL= NOPASSWD: /usr/bin/systemctl start nginx.service
+          appadm ALL= NOPASSWD: /usr/bin/systemctl stop nginx.service
+          appadm ALL= NOPASSWD: /usr/bin/systemctl restart nginx.service
+          appadm ALL= NOPASSWD: /usr/bin/systemctl status nginx.service
+          appadm ALL= NOPASSWD: /usr/bin/systemctl start nginx
+          appadm ALL= NOPASSWD: /usr/bin/systemctl stop nginx
+          appadm ALL= NOPASSWD: /usr/bin/systemctl restart nginx
+          appadm ALL= NOPASSWD: /usr/bin/systemctl status nginx
+        validate: '/usr/sbin/visudo -cf %s'
+        create: no
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - APPADM NGINX"
+
+    - name: Revert sudoers permissions back to 440
+      file:
+        path: /etc/sudoers
+        mode: '0440'
+
+    - name: Change ownership of /app to appadm
+      file:
+        path: /app
+        state: directory
+        recurse: yes
+        owner: appadm
+        group: appadm
