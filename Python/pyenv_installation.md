@@ -28,7 +28,8 @@ sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev librea
 Move to the application data directory and install Pyenv:
 ```bash
 cd /app/data
-curl https://pyenv.run | bash
+git clone https://github.com/pyenv/pyenv.git
+mv pyenv/ Python_env
 ```
 
 ---
