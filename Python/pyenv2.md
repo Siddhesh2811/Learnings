@@ -90,10 +90,71 @@ python --version
 
 ---
 
+## 📖 Useful Pyenv Commands
+
+Here are some common commands for managing Python versions and environments:
+
+### 🔍 Version Management
+- List installed versions:
+  ```bash
+  pyenv versions
+  ```
+- List all available versions:
+  ```bash
+  pyenv install --list
+  ```
+- Install a new version:
+  ```bash
+  pyenv install <version>
+  ```
+- Uninstall a version:
+  ```bash
+  pyenv uninstall <version>
+  ```
+
+### 🌍 Environment Settings
+- Set a global (default) version:
+  ```bash
+  pyenv global <version>
+  ```
+- Set a version for the current shell session only:
+  ```bash
+  pyenv shell <version>
+  ```
+- Set a version for a specific project (creates `.python-version`):
+  ```bash
+  pyenv local <version>
+  ```
+
+### 🧩 Virtual Environments
+- Create a new virtual environment:
+  ```bash
+  pyenv virtualenv <version> <env-name>
+  ```
+- List virtual environments:
+  ```bash
+  pyenv virtualenvs
+  ```
+- Activate a virtual environment:
+  ```bash
+  pyenv activate <env-name>
+  ```
+- Deactivate a virtual environment:
+  ```bash
+  pyenv deactivate
+  ```
+- Remove a virtual environment:
+  ```bash
+  pyenv uninstall <env-name>
+  ```
+
+---
+
 ## 📌 Notes
 
 - Always install dependencies before building Python versions.  
 - Use `pyenv virtualenv` to create isolated environments.  
-- Keep `.bashrc` updated with Pyenv configuration for persistence.
+- Keep `.bashrc` updated with Pyenv configuration for persistence.  
+- The `pyenv shell` command is useful for quick testing without changing global or local settings.
 
 ---
