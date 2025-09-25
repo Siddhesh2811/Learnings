@@ -33,8 +33,8 @@ vi .bashrc
 
 Add the following lines at the end:
 ```bash
-PYENV_ROOT="/app/data/Python_env"
-PATH="$PYENV_ROOT/bin:$PATH"
+export PYENV_ROOT="/app/data/Python_env"
+export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - bash)"
 eval "$(pyenv virtualenv-init -)"
 ```
