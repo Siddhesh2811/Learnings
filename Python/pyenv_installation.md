@@ -22,18 +22,6 @@ sudo apt install -y make build-essential libssl-dev zlib1g-dev libbz2-dev librea
 ```
 
 ---
-
-## 📦 Install Pyenv
-
-Move to the application data directory and install Pyenv:
-```bash
-cd /app/data
-git clone https://github.com/pyenv/pyenv.git
-mv pyenv/ Python_env
-```
-
----
-
 ## ⚙️ Configure Environment
 
 Edit your **`.bashrc`**:
@@ -56,6 +44,19 @@ source .bashrc
 ```
 
 ---
+
+## 📦 Install Pyenv
+
+Move to the application data directory and install Pyenv:
+```bash
+mkdir /app/data/Python_env
+git clone https://github.com/pyenv/pyenv.git $PYENV_ROOT
+git clone https://github.com/pyenv/pyenv-virtualenv.git $PYENV_ROOT/plugins/pyenv-virtualenv
+
+```
+
+---
+
 
 ## 🐍 Install Python Versions
 
