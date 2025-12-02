@@ -65,7 +65,7 @@ A packaged transport containing multiple fixes.
 
 ---
 
-## 🖥️ 4. SAP Note vs SAP KBA
+## 🖥️ 4. SAP Note vs SAP KBA (Knowledge Base Article)
 
 | Feature | SAP Note | SAP KBA |
 |--------|----------|----------|
